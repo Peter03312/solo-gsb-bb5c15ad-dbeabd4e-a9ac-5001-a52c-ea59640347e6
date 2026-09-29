@@ -2404,13 +2404,20 @@ function bindSightlineForms() {
 
 /* ---------- 吊挂布景载荷核算 ---------- */
 
-/** 载荷显示：整数直接显示，否则保留 2 位小数并附精确分数（服务端按分数精确累计） */
+/**
+ * 载荷显示：整数直接显示，否则保留 2 位小数并附精确分数（服务端按分数精确累计）。
+ * 分子 / 分母可能是数百位的十进制串（上百件互质分母叠加），不能 Number(num)/Number(den)：
+ * 会溢出成 Infinity/Infinity = NaN。小数值直接用服务端由精确分数四舍五入得到的 kg，
+ * 是否恰为百分位小数的判定用 BigInt 完成。
+ */
 function fmtLoad(f) {
-  const num = Number(f.num);
-  const den = Number(f.den);
-  if (den === 1) return String(num);
-  const dec = (num / den).toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
-  return (num * 100) % den === 0 ? dec : `${dec}…（=${f.num}/${f.den}）`;
+  const num = BigInt(f.num);
+  const den = BigInt(f.den);
+  if (den === 1n) return f.num;
+  // 服务端 kg 是按精确分数四舍五入到 2 位小数的有限数值；兜底（旧缓存等）时用 BigInt 现算
+  let kg = typeof f.kg === 'number' && Number.isFinite(f.kg) ? f.kg : Number((num * 100n) / den) / 100;
+  const dec = kg.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+  return (num * 100n) % den === 0n ? dec : `${dec}…（=${f.num}/${f.den}）`;
 }
 
 function rigPointName(id) {

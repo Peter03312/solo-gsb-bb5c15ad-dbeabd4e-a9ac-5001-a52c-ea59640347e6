@@ -72,11 +72,28 @@ function momentShare(weight, cogX, leftX, rightX) {
   };
 }
 
-/** 分数转 JSON：num/den 为精确分子分母（字符串，避免大数精度丢失），kg 为保留 2 位小数的数值 */
+/**
+ * 分数精确四舍五入到百分位（BigInt 全程运算，禁止把分子 / 分母先转浮点再相除）：
+ * 上百件互质分母叠加后，约分分母可达数百位，Number(bigint) 会溢出成 Infinity，
+ * Infinity / Infinity = NaN（JSON 序列化为 null，页面显示 NaN）。
+ * 物理载荷本身有限（每件 ≤ 10^6 kg、件数有限），故四舍五入后的百分位整数 q 很小，
+ * 末尾唯一一次 Number(q) 转换不会丢精度。符号与 Math.round 一致（半数向远离 0 方向进一）。
+ */
+function roundHundredths(f) {
+  const neg = f.n < 0n;
+  const an = neg ? -f.n : f.n;
+  const rem = (an * 100n) % f.d;
+  let q = (an * 100n) / f.d;
+  if (rem * 2n >= f.d) q += 1n;
+  return Number(neg ? -q : q) / 100;
+}
+
+/**
+ * 分数转 JSON：num/den 为精确分子分母（字符串，避免大数精度丢失），
+ * kg 为从精确分数四舍五入得到的 2 位小数数值（roundHundredths，不经浮点相除）。
+ */
 function fracToJson(f) {
-  const num = Number(f.n);
-  const den = Number(f.d);
-  return { num: f.n.toString(), den: f.d.toString(), kg: Math.round((num / den) * 100) / 100 };
+  return { num: f.n.toString(), den: f.d.toString(), kg: roundHundredths(f) };
 }
 
 /**
